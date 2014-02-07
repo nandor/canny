@@ -16,6 +16,7 @@ main(int argc, char **argv)
 
   memset(&dev, 0, sizeof(dev));
   dev.camera = (argc >= 2) ? argv[1] : "/dev/video0";
+
   if (!openCamera(&dev))
   {
     destroyCamera(&dev);

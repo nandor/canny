@@ -6,7 +6,6 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <sys/ioctl.h>
-#include <linux/videodev2.h>
 #include "camera.h"
 
 /**
@@ -72,6 +71,8 @@ openCamera(struct camera *dev)
   dev->width = fmt.fmt.pix.width;
   dev->height = fmt.fmt.pix.height;
   dev->size = fmt.fmt.pix.sizeimage;
+  dev->type = fmt.fmt.pix.colorspace;
+  dev->format = fmt.fmt.pix.pixelformat;
 
   /* Request 4 buffers */
   memset(&req, 0, sizeof(req));
@@ -189,30 +190,79 @@ startCamera(struct camera *dev)
 
 /**
  * Retrieves a frame from the camera
- * @return -1 on error, 0 on EAGAIN, +1
  */
 int
 getFrame(struct camera *dev, uint8_t *dest)
 {
   struct v4l2_buffer buf;
+  struct timeval tv;
+  fd_set fds;
+  int r, i, j, idx;
 
   if (!dev->capture || !dest)
   {
-    return -1;
+    return 0;
   }
 
-  /* Deque the buffer & read from it */
-  memset(&buf, 0, sizeof(buf));
-  buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-  buf.memory = V4L2_MEMORY_MMAP;
-  if (devctl(dev, VIDIOC_DQBUF, &buf) < 0 || buf.index < dev->buffer_count)
+  /* Repeat if VIDIOC_DQBUF fails with EAGAIN */
+  do
   {
-    /* Resume on EAGAIN */
-    return errno == EAGAIN ? 0 : (-1);
+    /* Set up select */
+    FD_ZERO(&fds);
+    FD_SET(dev->fd, &fds);
+    tv.tv_sec = 0;
+    tv.tv_usec = 16000;
+    if ((r = select(dev->fd + 1, &fds, NULL, NULL, &tv)) <= 0)
+    {
+      if (errno == EINTR)
+      {
+        continue;
+      }
+      return 0;
+    }
+
+    /* Deque the buffer & read from it */
+    memset(&buf, 0, sizeof(buf));
+    buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    buf.memory = V4L2_MEMORY_MMAP;
+  } while (devctl(dev, VIDIOC_DQBUF, &buf) < 0 && errno == EAGAIN);
+
+  /* Invalid buffer */
+  if (buf.index >= dev->buffer_count)
+  {
+    return 0;
+  }
+
+  /* Process the image */
+  switch (dev->format)
+  {
+    case V4L2_PIX_FMT_YUYV:
+    {
+      idx = 0;
+      for (i = 0; i < dev->height; ++i)
+      {
+        for (j = 0; j < dev->width; ++j)
+        {
+          dest[idx++] = 0xFF;
+          dest[idx++] = 0x00;
+          dest[idx++] = 0xFF;
+        }
+      }
+      break;
+    }
+    default:
+    {
+      return 0;
+    }
   }
 
   /* Put the buffer back in the queue */
-  return devctl(dev, VIDIOC_QBUF, &buf) < 0 ? (-1) : 1;
+  if (devctl(dev, VIDIOC_QBUF, &buf) < 0)
+  {
+    return 0;
+  }
+
+  return 1;
 }
 
 /**

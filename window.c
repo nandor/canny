@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include <X11/Xatom.h>
+#include <X11/Xutil.h>
 #include "window.h"
 
 int
@@ -8,6 +10,7 @@ initWindow(struct window *wnd)
   XVisualInfo *vi;
   XSetWindowAttributes swa;
   Colormap cmap;
+  Atom atom;
   Window root;
 
   static int attr[] =
@@ -40,7 +43,10 @@ initWindow(struct window *wnd)
 
   /* Create the window */
   swa.colormap = cmap;
-  swa.event_mask = StructureNotifyMask | ExposureMask | KeyPressMask;
+  swa.border_pixel = 0;
+  swa.override_redirect = 1;
+  swa.event_mask = StructureNotifyMask | ExposureMask |
+                   KeyPressMask | ResizeRedirectMask;
   if (!(wnd->wnd = XCreateWindow(wnd->dpy, root, 0, 0, wnd->width, wnd->height,
                                  0, vi->depth, InputOutput, vi->visual,
                                  CWColormap | CWEventMask, &swa)))
@@ -50,13 +56,16 @@ initWindow(struct window *wnd)
   }
 
   /* Catch window close events */
-  if (!(wnd->wndClose = XInternAtom(wnd->dpy, "WM_DELETE_WINDOW", False)))
-  {
-    XFree(vi);
-    return 0;
-  }
-
+  wnd->wndClose = XInternAtom(wnd->dpy, "WM_DELETE_WINDOW", False);
   XSetWMProtocols(wnd->dpy, wnd->wnd, &wnd->wndClose, 1);
+
+  /* Make this window a popup */
+  if ((atom = XInternAtom(wnd->dpy, "_NET_WM_WINDOW_TYPE_DIALOG", True)) != 0)
+  {
+    XChangeProperty(wnd->dpy, wnd->wnd,
+                    XInternAtom(wnd->dpy, "_NET_WM_WINDOW_TYPE", True),
+                    XA_ATOM, 32, PropModeReplace, (uint8_t*)&atom, 1);
+  }
 
   /* Map the window */
   XMapWindow(wnd->dpy, wnd->wnd);
@@ -87,9 +96,14 @@ updateWindow(struct window *wnd)
     XNextEvent(wnd->dpy, &evt);
     switch (evt.type)
     {
+      case ResizeRequest:
+      {
+        XResizeWindow(wnd->dpy, wnd->wnd, wnd->width, wnd->height);
+        break;
+      }
       case ClientMessage:
       {
-        if (evt.xclient.data.l[0] == wnd->wndClose)
+        if (evt.xclient.data.l[0] == (int)wnd->wndClose)
         {
           return 0;
         }
@@ -102,7 +116,7 @@ updateWindow(struct window *wnd)
   return 1;
 }
 
-int
+void
 destroyWindow(struct window *wnd)
 {
   if (wnd->ctx)
@@ -128,6 +142,7 @@ destroyWindow(struct window *wnd)
 void
 displayFrame(struct window *wnd, uint8_t *data)
 {
-  glClear(GL_COLOR_BUFFER_BIT);
+  glViewport(0, 0, wnd->width, wnd->height);
+  glDrawPixels(wnd->width, wnd->height, GL_RGB, GL_UNSIGNED_BYTE, data);
   glXSwapBuffers(wnd->dpy, wnd->wnd);
 }

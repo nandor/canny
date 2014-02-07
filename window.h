@@ -18,8 +18,8 @@ struct window
 };
 
 int initWindow(struct window *);
-int destroyWindow(struct window *);
 int updateWindow(struct window *);
+void destroyWindow(struct window *);
 void displayFrame(struct window *, uint8_t *);
 
 #endif /*__HOG_WINDOW_H__*/

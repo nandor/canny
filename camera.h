@@ -2,6 +2,7 @@
 #define __HOG_CAMERA_H__
 
 #include <stdint.h>
+#include <linux/videodev2.h>
 
 struct buffer
 {
@@ -17,7 +18,9 @@ struct camera
   uint32_t height;
   size_t size;
   uint32_t buffer_count;
+  uint32_t format;
   struct buffer *buffers;
+  enum v4l2_colorspace type;
   const char *camera;
 };
 
