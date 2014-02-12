@@ -26,7 +26,7 @@ struct camera
 
 int openCamera(struct camera *);
 int startCamera(struct camera *);
-int getFrame(struct camera *, uint8_t *);
+int getImage(struct camera *, uint8_t *);
 void stopCamera(struct camera *);
 void destroyCamera(struct camera *);
 

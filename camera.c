@@ -189,15 +189,57 @@ startCamera(struct camera *dev)
 }
 
 /**
+ * Clips a color to 0 - 255
+ */
+static inline uint8_t
+clip(int color)
+{
+  return (color < 0) ? 0 : (color >= 0xFF ? 0xFF : color);
+}
+
+/**
+ * Converts an YUYV source to RGB
+ */
+static void
+yuyvToRGB(uint8_t *src, uint8_t *dest, uint32_t w, uint32_t h)
+{
+  uint32_t idx, sidx, i, j;
+  int c0, c1, d, e;
+
+  sidx = 0;
+  idx = 0;
+  for (i = 0; i < h; ++i)
+  {
+    for (j = 0; j < w >> 1; ++j)
+    {
+      c0 = src[sidx++] - 16;
+      d  = src[sidx++] - 128;
+      c1 = src[sidx++] - 16;
+      e  = src[sidx++] - 128;
+
+      dest[idx++] = clip((298 * c0           + 409 * e + 128) >> 8);
+      dest[idx++] = clip((298 * c0 - 100 * d - 208 * e + 128) >> 8);
+      dest[idx++] = clip((298 * c0 + 516 * d           + 128) >> 8);
+      dest[idx++] = 0;
+
+      dest[idx++] = clip((298 * c1           + 409 * e + 128) >> 8);
+      dest[idx++] = clip((298 * c1 - 100 * d - 208 * e + 128) >> 8);
+      dest[idx++] = clip((298 * c1 + 516 * d           + 128) >> 8);
+      dest[idx++] = 0;
+    }
+  }
+}
+
+/**
  * Retrieves a frame from the camera
  */
 int
-getFrame(struct camera *dev, uint8_t *dest)
+getImage(struct camera *dev, uint8_t *dest)
 {
   struct v4l2_buffer buf;
   struct timeval tv;
   fd_set fds;
-  int r, i, j, idx;
+  int r;
 
   if (!dev->capture || !dest)
   {
@@ -238,16 +280,7 @@ getFrame(struct camera *dev, uint8_t *dest)
   {
     case V4L2_PIX_FMT_YUYV:
     {
-      idx = 0;
-      for (i = 0; i < dev->height; ++i)
-      {
-        for (j = 0; j < dev->width; ++j)
-        {
-          dest[idx++] = 0xFF;
-          dest[idx++] = 0x00;
-          dest[idx++] = 0xFF;
-        }
-      }
+      yuyvToRGB(dev->buffers[buf.index].ptr, dest, dev->width, dev->height);
       break;
     }
     default:

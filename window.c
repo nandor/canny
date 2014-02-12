@@ -1,7 +1,9 @@
 #include <stdio.h>
 #include <X11/Xatom.h>
 #include <X11/Xutil.h>
+#include <GL/glew.h>
 #include "window.h"
+#include "process.h"
 
 int
 initWindow(struct window *wnd)
@@ -83,6 +85,11 @@ initWindow(struct window *wnd)
 
   XFree(vi);
   glXMakeCurrent(wnd->dpy, wnd->wnd, wnd->ctx);
+  if (glewInit() != GLEW_OK)
+  {
+    return 0;
+  }
+
   return 1;
 }
 
@@ -140,9 +147,25 @@ destroyWindow(struct window *wnd)
 }
 
 void
-displayFrame(struct window *wnd, uint8_t *data)
+displayImage(struct window *wnd, struct process *proc)
 {
   glViewport(0, 0, wnd->width, wnd->height);
-  glDrawPixels(wnd->width, wnd->height, GL_RGB, GL_UNSIGNED_BYTE, data);
+
+  glMatrixMode(GL_PROJECTION);
+  glLoadIdentity();
+  glOrtho(0.0f, wnd->width, wnd->height, 0.0f, -1.0, 1.0f);
+  glMatrixMode(GL_MODELVIEW);
+
+  glEnable(GL_TEXTURE_2D);
+  glBindTexture(GL_TEXTURE_2D, proc->output);
+  glBegin(GL_QUADS);
+    glTexCoord2f(0.0f, 0.0f); glVertex2i(0, 0);
+    glTexCoord2f(1.0f, 0.0f); glVertex2i(wnd->width, 0);
+    glTexCoord2f(1.0f, 1.0f); glVertex2i(wnd->width, wnd->height);
+    glTexCoord2f(0.0f, 1.0f); glVertex2i(0, wnd->height);
+  glEnd();
+  glBindTexture(GL_TEXTURE_2D, 0);
+  glDisable(GL_TEXTURE_2D);
+
   glXSwapBuffers(wnd->dpy, wnd->wnd);
 }

@@ -3,6 +3,7 @@
 #include <string.h>
 #include "camera.h"
 #include "window.h"
+#include "process.h"
 
 /**
  * Entry point of the application
@@ -12,6 +13,7 @@ main(int argc, char **argv)
 {
   struct camera dev;
   struct window wnd;
+  struct process proc;
   uint8_t *buf;
 
   memset(&dev, 0, sizeof(dev));
@@ -24,13 +26,6 @@ main(int argc, char **argv)
     return EXIT_FAILURE;
   }
 
-  if (!(buf = (uint8_t*)malloc(dev.width * dev.height * 3)))
-  {
-    destroyCamera(&dev);
-    fprintf(stderr, "Cannot allocate buffer");
-    return EXIT_FAILURE;
-  }
-
   memset(&wnd, 0, sizeof(wnd));
   wnd.width = dev.width;
   wnd.height = dev.height;
@@ -38,8 +33,28 @@ main(int argc, char **argv)
   {
     destroyCamera(&dev);
     destroyWindow(&wnd);
-    fprintf(stderr, "Cannot create window");
-    free(buf);
+    fprintf(stderr, "Cannot create window\n");
+    return EXIT_FAILURE;
+  }
+
+  memset(&proc, 0, sizeof(proc));
+  proc.width = dev.width;
+  proc.height = dev.height;
+  if (!initProcess(&proc))
+  {
+    destroyCamera(&dev);
+    destroyWindow(&wnd);
+    destroyProcess(&proc);
+    fprintf(stderr, "Cannot create process\n");
+    return EXIT_FAILURE;
+  }
+
+  if (!(buf = (uint8_t*)malloc(dev.width * dev.height * 4)))
+  {
+    destroyCamera(&dev);
+    destroyWindow(&wnd);
+    destroyProcess(&proc);
+    fprintf(stderr, "Cannot allocate buffer");
     return EXIT_FAILURE;
   }
 
@@ -47,8 +62,9 @@ main(int argc, char **argv)
 
   while (updateWindow(&wnd))
   {
-    getFrame(&dev, buf);
-    displayFrame(&wnd, buf);
+    getImage(&dev, buf);
+    processImage(&proc, buf);
+    displayImage(&wnd, &proc);
   }
 
   stopCamera(&dev);
@@ -56,5 +72,7 @@ main(int argc, char **argv)
   free(buf);
   destroyWindow(&wnd);
   destroyCamera(&dev);
+  destroyProcess(&proc);
   return EXIT_SUCCESS;
 }
+

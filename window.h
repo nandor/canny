@@ -3,8 +3,10 @@
 
 #include <stdint.h>
 #include <X11/Xlib.h>
-#include <GL/gl.h>
-#include <GL/glx.h>
+#include <GL/glew.h>
+#include <GL/glxew.h>
+
+struct process;
 
 struct window
 {
@@ -20,6 +22,6 @@ struct window
 int initWindow(struct window *);
 int updateWindow(struct window *);
 void destroyWindow(struct window *);
-void displayFrame(struct window *, uint8_t *);
+void displayImage(struct window *, struct process *);
 
 #endif /*__HOG_WINDOW_H__*/
