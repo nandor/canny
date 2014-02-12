@@ -1,6 +1,33 @@
+/* OpenCL kernels for Canny Edge Detector */
+
+/* Texture sampler */
 __constant sampler_t sampler = CLK_FILTER_NEAREST |
                                CLK_NORMALIZED_COORDS_FALSE | 
                                CLK_ADDRESS_CLAMP_TO_EDGE;
+
+/* Low threshold for hysteresis supression */
+__constant float TLOW = 0.01;
+/* High threshold for hysteresis supression */
+__constant float THIGH = 0.3;
+
+/* 3x3 kernel border offsets */
+__constant int2 OFF3X3[] =
+{
+  (int2)(-1, -1), (int2)( 0, -1), (int2)(1, -1), 
+  (int2)(-1,  0),                 (int2)(1,  0), 
+  (int2)(-1,  1), (int2)( 0,  1), (int2)(1,  1),
+};
+
+/* 5x5 kernel border offsets */
+__constant int2 OFF5X5[] =
+{
+  (int2)(-2, -2), (int2)(-1, -2), (int2)(0, -2), (int2)(1, -2), (int2)(2, -2),
+  (int2)(-2, -1),                                               (int2)(2, -1), 
+  (int2)(-2,  0),                                               (int2)(2,  0),
+  (int2)(-2,  1),                                               (int2)(2,  1),
+  (int2)(-2,  2), (int2)(-1,  2), (int2)(0,  2), (int2)(1,  2), (int2)(2,  2)
+};
+
 
 /**
  * Gaussian blur with a 5x5 kernel
@@ -52,6 +79,7 @@ __kernel void krnSobel(__read_only image2d_t blur,
 {
   int2 uv;
   float4 vert, horz, pix;
+  float4 orig;
 
   uv = (int2){ get_global_id(0), get_global_id(1) };
 
@@ -64,8 +92,8 @@ __kernel void krnSobel(__read_only image2d_t blur,
   float4 p_sw = read_imagef(blur, sampler, uv + (int2)(-1,  1));
   float4 p_w  = read_imagef(blur, sampler, uv + (int2)(-1,  0));
 
-  vert = p_nw + 2 * p_n + p_ne - p_sw - 2 * p_s - p_ne;
-  horz = p_ne + 2 * p_e + p_se - p_nw - 2 * p_w - p_sw;
+  vert = p_nw + 2 * p_n + p_ne - p_sw - 2 * p_s - p_se;
+  horz = p_nw + 2 * p_w + p_sw - p_ne - 2 * p_e - p_se;
 
   pix.x = hypot(vert, horz).x;          // G = sqrt(Gx^2+Gy^2)
   pix.y = atanpi(vert / horz).x + 0.5;  // theta = atan(vert/horz)
@@ -108,7 +136,7 @@ __kernel void krnNMS(__read_only image2d_t sobel,
   { 
     dir = (int2)(0, 1); // 90 degrees
   }
-
+  
   center = read_imagef(sobel, sampler, uv);
   left   = read_imagef(sobel, sampler, uv + dir).x;
   right  = read_imagef(sobel, sampler, uv - dir).x;
@@ -121,25 +149,6 @@ __kernel void krnNMS(__read_only image2d_t sobel,
 
   write_imagef(nms, uv, out);
 }
-
-__constant float tLow = 0.01;
-__constant float tHigh = 0.2;
-
-__constant int2 off3x3[] =
-{
-  (int2)(-1, -1), (int2)( 0, -1), (int2)(1, -1), 
-  (int2)(-1,  0),                 (int2)(1,  0), 
-  (int2)(-1,  1), (int2)( 0,  1), (int2)(1,  1),
-};
-
-__constant int2 off5x5[] =
-{
-  (int2)(-2, -2), (int2)(-1, -2), (int2)(0, -2), (int2)(1, -2), (int2)(2, -2),
-  (int2)(-2, -1),                                               (int2)(2, -1), 
-  (int2)(-2,  0),                                               (int2)(2,  0),
-  (int2)(-2,  1),                                               (int2)(2,  1),
-  (int2)(-2,  2), (int2)(-1,  2), (int2)(0,  2), (int2)(1,  2), (int2)(2,  2)
-};
 
 /**
  * Hysteresis thresholding
@@ -155,23 +164,23 @@ __kernel void krnHysteresis(__read_only image2d_t nms,
   uv = (int2){ get_global_id(0), get_global_id(1) };
   pix = read_imagef(nms, sampler, uv);
 
-  if (pix.x >= tHigh) 
+  if (pix.x >= THIGH) 
   {
-    write_imagef(out, uv, (float4)(pix.x));
+    write_imagef(out, uv, (float4)(1));
     return;
   } 
-  else if (pix.x >= tLow) 
+  else if (pix.x >= TLOW) 
   {
     cont = false;
     for (i = 0; i < 8; ++i) 
     {
-      neigh = read_imagef(nms, sampler, uv + off3x3[i]);
-      if (neigh.x >= tHigh) 
+      neigh = read_imagef(nms, sampler, uv + OFF3X3[i]);
+      if (neigh.x >= THIGH) 
       {
-        write_imagef(out, uv, (float4)(pix.x));
+        write_imagef(out, uv, (float4)(1));
         return;
       }
-      else if (neigh.x >= tLow) 
+      else if (neigh.x >= TLOW) 
       {
         cont = true;
       }
@@ -181,10 +190,10 @@ __kernel void krnHysteresis(__read_only image2d_t nms,
     {
       for (i = 0; i < 16; ++i) 
       {
-        neigh = read_imagef(nms, sampler, uv + off5x5[i]);
-        if (neigh.x >= tHigh) 
+        neigh = read_imagef(nms, sampler, uv + OFF5X5[i]);
+        if (neigh.x >= THIGH) 
         {
-          write_imagef(out, uv, (float4)(pix.x));
+          write_imagef(out, uv, (float4)(1));
           return;
         }
       }
@@ -192,4 +201,22 @@ __kernel void krnHysteresis(__read_only image2d_t nms,
   }
 
   write_imagef(out, uv, (float)(0.0));
+}
+
+
+/**
+ * Final composition
+ */
+__kernel void krnFinal(__read_only image2d_t edges,
+                       __read_only image2d_t input,
+                       __write_only image2d_t out)
+{
+  float4 edge, pix;
+  int2 uv;
+
+  uv = (int2){ get_global_id(0), get_global_id(1) };
+  edge = read_imagef(edges, sampler, uv);
+  pix = read_imagef(input, sampler, uv);
+
+  write_imagef(out, uv, edge.x + pix);
 }

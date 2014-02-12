@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -27,13 +28,13 @@ devctl(struct camera *dev, int req, void *arg)
  * Retrieves a handle to a camera
  */
 int
-openCamera(struct camera *dev)
+initCamera(struct camera *dev)
 {
-  struct stat st;
-  struct v4l2_capability cap;
-  struct v4l2_format fmt;
   struct v4l2_requestbuffers req;
   struct v4l2_buffer buf;
+  struct v4l2_capability cap;
+  struct v4l2_format fmt;
+  struct stat st;
   uint32_t i;
 
   /* Check whether the camera can be read from */
@@ -60,11 +61,20 @@ openCamera(struct camera *dev)
     return 0;
   }
 
-  /* Retrieve the image format */
+  /* Change resolution */
   memset(&fmt, 0, sizeof(fmt));
   fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   if (devctl(dev, VIDIOC_G_FMT, &fmt) < 0)
   {
+    fprintf(stderr, "V4L2: Cannot query format");
+    return 0;
+  }
+  
+  fmt.fmt.pix.width = dev->width ? dev->width : fmt.fmt.pix.width;
+  fmt.fmt.pix.height = dev->height ? dev->height : fmt.fmt.pix.height;
+  if (devctl(dev, VIDIOC_S_FMT, &fmt) < 0)
+  {
+    fprintf(stderr, "V4L2: Cannot set format");
     return 0;
   }
 
@@ -74,9 +84,9 @@ openCamera(struct camera *dev)
   dev->type = fmt.fmt.pix.colorspace;
   dev->format = fmt.fmt.pix.pixelformat;
 
-  /* Request 4 buffers */
+  /* Request buffers */
   memset(&req, 0, sizeof(req));
-  req.count = 4;
+  req.count = 8;
   req.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   req.memory = V4L2_MEMORY_MMAP;
   if (devctl(dev, VIDIOC_REQBUFS, &req) < 0 || req.count < 2)

@@ -27,24 +27,26 @@ struct process
 
   /* OpenCL kernels */
   union {
-    cl_kernel kernels[4];
+    cl_kernel kernels[5];
     struct {
       cl_kernel krnBlur;
       cl_kernel krnSobel;
       cl_kernel krnNMS;
       cl_kernel krnHysteresis;
+      cl_kernel krnFinal;
     };
   };
 
   /* OpenCL buffers */
   union {
-    cl_mem images[5];
+    cl_mem images[6];
     struct {
       cl_mem out; 
       cl_mem input;
       cl_mem blur;
       cl_mem sobel;
       cl_mem nms;
+      cl_mem edges;
     };
   };
 };

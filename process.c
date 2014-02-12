@@ -100,7 +100,11 @@ initProcess(struct process * proc)
   }
   
   /* Retrieve the kernels */
-  const char * kernels[] = { "krnBlur", "krnSobel", "krnNMS", "krnHysteresis" };
+  const char * kernels[] = { 
+      "krnBlur", "krnSobel", "krnNMS", 
+      "krnHysteresis", "krnFinal"
+  };
+
   for (i = 0; i < sizeof(kernels) / sizeof(kernels[0]); ++i) 
   {
     if (!(proc->kernels[i] = clCreateKernel(proc->prog, kernels[i], &err)))
@@ -166,16 +170,22 @@ processImage(struct process *proc, uint8_t *data)
   clSetKernelArg(proc->krnSobel, 1, sizeof(cl_mem), &proc->sobel);
   clEnqueueNDRangeKernel(proc->queue, proc->krnSobel, 2, NULL, 
                          workSize, NULL, 0, NULL, NULL);  
-
+  
   clSetKernelArg(proc->krnNMS, 0, sizeof(cl_mem), &proc->sobel);
   clSetKernelArg(proc->krnNMS, 1, sizeof(cl_mem), &proc->nms);
   clEnqueueNDRangeKernel(proc->queue, proc->krnNMS, 2, NULL, 
                          workSize, NULL, 0, NULL, NULL);  
   
   clSetKernelArg(proc->krnHysteresis, 0, sizeof(cl_mem), &proc->nms);
-  clSetKernelArg(proc->krnHysteresis, 1, sizeof(cl_mem), &proc->out);
+  clSetKernelArg(proc->krnHysteresis, 1, sizeof(cl_mem), &proc->edges);
   clEnqueueNDRangeKernel(proc->queue, proc->krnHysteresis, 2, NULL, 
                          workSize, NULL, 0, NULL, NULL);  
+  
+  clSetKernelArg(proc->krnFinal, 0, sizeof(cl_mem), &proc->edges);
+  clSetKernelArg(proc->krnFinal, 1, sizeof(cl_mem), &proc->input);
+  clSetKernelArg(proc->krnFinal, 2, sizeof(cl_mem), &proc->out);
+  clEnqueueNDRangeKernel(proc->queue, proc->krnFinal, 2, NULL, 
+                         workSize, NULL, 0, NULL, NULL); 
   
   clEnqueueReleaseGLObjects(proc->queue, 1, &proc->out, 0, NULL, NULL);
   clFinish(proc->queue);

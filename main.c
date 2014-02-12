@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <getopt.h>
 #include "camera.h"
 #include "window.h"
 #include "process.h"
@@ -11,15 +12,40 @@
 int
 main(int argc, char **argv)
 {
+  static struct option options[] =
+  {
+    { "width",  required_argument, 0, 'w' },
+    { "height", required_argument, 0, 'h' }
+  };
+
   struct camera dev;
   struct window wnd;
   struct process proc;
   uint8_t *buf;
+  int c, idx;
 
+  /* Retrieve settings from the command line */
   memset(&dev, 0, sizeof(dev));
-  dev.camera = (argc >= 2) ? argv[1] : "/dev/video0";
+  while ((c = getopt_long(argc, argv, "w:h:", options, &idx)) != -1)
+  {
+    switch (c)
+    {
+      case 'w':
+      {
+        dev.width = atoi(optarg);
+        break;
+      }
+      case 'h':
+      {
+        dev.height = atoi(optarg);
+        break;
+      }
+    }
+  }
 
-  if (!openCamera(&dev))
+  dev.camera = (optind < argc) ? argv[optind] : "/dev/video0";
+
+  if (!initCamera(&dev))
   {
     destroyCamera(&dev);
     fprintf(stderr, "Cannot open camera '%s'\n", dev.camera);

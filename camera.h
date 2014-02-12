@@ -24,7 +24,7 @@ struct camera
   const char *camera;
 };
 
-int openCamera(struct camera *);
+int initCamera(struct camera *);
 int startCamera(struct camera *);
 int getImage(struct camera *, uint8_t *);
 void stopCamera(struct camera *);

@@ -5,7 +5,7 @@ CFLAGS=-c -Wall -Wextra -std=gnu99 -O2 -funroll-loops -g
 LDFLAGS=-lc -lm -lX11 -lGLEW -lGL -lOpenCL
 SOURCES=main.c camera.c window.c process.c
 OBJECTS=$(SOURCES:.c=.o)
-EXECUTABLE=hog
+EXECUTABLE=canny
 
 all: $(SOURCES) $(EXECUTABLE)
 
